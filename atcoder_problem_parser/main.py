@@ -67,11 +67,17 @@ def app(contest: str = "", problem: str = "", url: str = "") -> List[str]:
         target_url = url
 
     response: requests.Response = requests.get(target_url)
-
-    return parse(response.text)
+    if response.status_code == 200:
+        return parse(response.text)
+    else:
+        response.raise_for_status()
+        return []
 
 
 def validate(context: click.Context, parameter: click.Parameter, value: str):
+    if value == "":
+        return value
+
     contest: str = value
 
     if len(contest) != 6:
@@ -95,15 +101,22 @@ def validate(context: click.Context, parameter: click.Parameter, value: str):
 )
 @click.argument(
     "problem",
-    type=click.Choice(["a", "b", "c", "d", "e", "f", "g", "h"], case_sensitive=False),
+    type=click.Choice(
+        ["a", "b", "c", "d", "e", "f", "g", "h", ""], case_sensitive=False
+    ),
     default="",
 )
 @click.option("--url", default="", help="Problem URL.")
 def main(contest: str = "", problem: str = "", url: str = "") -> None:
-    result = app(contest, problem, url)
+    try:
+        result = app(contest, problem, url)
 
-    for r in result:
-        print(r)
+        for r in result:
+            print(r)
+    except requests.HTTPError:
+        if url != "":
+            print("Specified URL is probably wrong. Check it out!", file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":
