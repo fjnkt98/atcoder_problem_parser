@@ -70,9 +70,33 @@ def app(contest: str = "", problem: str = "", url: str = "") -> List[str]:
     return parse(response.text)
 
 
+def validate(context: click.Context, parameter: click.Parameter, value: str):
+    contest: str = value
+
+    if len(contest) != 6:
+        raise click.BadParameter("Invalid contest name.")
+    if contest[:3].lower() not in ["abc", "arc", "agc"]:
+        raise click.BadParameter(
+            "Invalid contest name. This parameter must be 'abc', 'arc', or 'agc'."
+        )
+    if not (0 <= int(contest[3:]) < 1000):
+        raise click.BadParameter("Invalid contest number.")
+
+    return contest
+
+
 @click.command()
-@click.option("--contest", default="", help="Type of contest. abc, arc, or agc.")
-@click.option("--problem", default="", help="Problem index. a, b, c, ..., h")
+@click.argument(
+    "contest",
+    type=str,
+    default="",
+    callback=validate,
+)
+@click.argument(
+    "problem",
+    type=click.Choice(["a", "b", "c", "d", "e", "f", "g", "h"], case_sensitive=False),
+    default="",
+)
 @click.option("--url", default="", help="Problem URL.")
 def main(contest: str = "", problem: str = "", url: str = "") -> None:
     result = app(contest, problem, url)
