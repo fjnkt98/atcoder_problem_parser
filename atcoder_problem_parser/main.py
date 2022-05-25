@@ -47,6 +47,7 @@ def parse(text: str):
 
 
 def app(contest: str = "", problem: str = "", url: str = "") -> List[str]:
+    print(contest)
     target_problem: str = ""
     target_url: str = ""
     if url == "":
@@ -82,7 +83,7 @@ def validate(context: click.Context, parameter: click.Parameter, value: str):
     if not (0 <= int(contest[3:]) < 1000):
         raise click.BadParameter("Invalid contest number.")
 
-    return contest
+    return contest.lower()
 
 
 @click.command()
