@@ -3,6 +3,7 @@ import requests
 import bs4
 from typing import List
 import sys
+from .tag_parser import parse_p, parse_itemize
 
 
 def parse(text: str) -> List[str]:
@@ -20,28 +21,15 @@ def parse(text: str) -> List[str]:
     # List for containing the parse result
     # At first, try to extract problem statements
     result: List[str] = ["### 問題文", ""]
-    for p in soup.select("h3:-soup-contains('問題文') ~ p"):
-        # Buffer list
-        strings: List[str] = []
-        for t in p:
-            if isinstance(t, bs4.element.NavigableString):
-                strings.append(str(t).strip())
-            elif isinstance(t, bs4.element.Tag):
-                if t.name == "var":
-                    strings.append("$" + str(t.get_text(strip=True)) + "$")
-                elif t.name == "code":
-                    strings.append("`" + str(t.get_text(strip=True)) + "`")
-                elif t.name == "br":
-                    # WHen <br> tag is there, break line.
-                    # Store the result in citation format
-                    result.append("> " + "".join(strings))
-                    strings = []
-
-        if strings:
-            # If the buffer is not empty, extract all contents
-            # Store the result in citation format
-            result.append("> " + "".join(strings))
-        result.append("> ")
+    for element in soup.select(
+        "h3:-soup-contains('問題文') ~ p, h3:-soup-contains('問題文') ~ ul, h3:-soup-contains('問題文') ~ ol"
+    ):
+        if element.name == "p":
+            result.extend(parse_p(element))
+        elif element.name == "ul":
+            result.extend(parse_itemize(element, "ul"))
+        elif element.name == "ol":
+            result.extend(parse_itemize(element, "ol"))
 
     # Eliminate last line
     result[-1] = ""
