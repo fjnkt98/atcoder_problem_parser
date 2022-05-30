@@ -26,13 +26,16 @@ def parse(text: str) -> List[str]:
     ):
         if element.name == "p":
             result.extend(parse_p(element))
+            result.append("> ")
         elif element.name == "ul":
             result.extend(parse_itemize(element, "ul"))
+            result.append("> ")
         elif element.name == "ol":
             result.extend(parse_itemize(element, "ol"))
 
-    # Eliminate last line
-    result[-1] = ""
+    # Make trailing line blank.
+    if result[-1] == "> ":
+        result[-1] = ""
 
     # Next, try to extract problem constraints statements
     result.extend(["### 制約", ""])

@@ -42,9 +42,6 @@ def parse_p(element: bs4.element.Tag) -> List[str]:
         result.append("> " + "".join(buffer))
         buffer.clear()
 
-    # Return with a trailing blank line.
-    result.append("> ")
-
     return result
 
 
@@ -64,6 +61,7 @@ def parse_itemize(element: bs4.element.Tag, type: str = "ul") -> List[str]:
     # List retaining the formatted list items.
     result: List[str] = []
     # Prefix string for markdown list items.
+    assert type == "ul" or type == "ol"
     prefix: str = "- " if type == "ul" else "1. "
 
     # Process each elements in item list
@@ -76,29 +74,18 @@ def parse_itemize(element: bs4.element.Tag, type: str = "ul") -> List[str]:
         for e in item:
             if e.name == "p":
                 # TODO: use regular expression
-                p = parse_p(e)
-                print(len(p))
-                result.append(p[0].replace("> ", f"> {prefix}"))
+                p: List[str] = parse_p(e)
+                result.append(p[0].replace("> ", "> - "))
             else:
                 if isinstance(e, bs4.element.NavigableString):
-                    # WHen the element is just a text, simply append it as a string.
                     buffer.append(str(e).strip())
                 elif isinstance(e, bs4.element.Tag):
                     if e.name == "var":
-                        # When the element is <var>, format it as katex literal and append it.
                         buffer.append("$" + str(e.get_text(strip=True)) + "$")
                     elif e.name == "code":
-                        # When the element is <code>, format it as markdown code block and append it.
                         buffer.append("`" + str(e.get_text(strip=True)) + "`")
                     elif e.name == "ul":
-                        # When the element is nested itemization, parse it recursively.
-                        # Dump the buffer contents.
                         result.append(f"> {prefix}" + "".join(buffer))
-                        # Clear buffer after dumping.
-                        buffer.clear()
-
-                        # Parse itemized element recursively, and store it to result.
-                        # 1 indent deeper.
                         result.extend(
                             list(
                                 map(
@@ -108,9 +95,7 @@ def parse_itemize(element: bs4.element.Tag, type: str = "ul") -> List[str]:
                             )
                         )
                     elif e.name == "ol":
-                        # Same to above.
                         result.append(f"> {prefix}" + "".join(buffer))
-                        buffer.clear()
                         result.extend(
                             list(
                                 map(
@@ -120,7 +105,7 @@ def parse_itemize(element: bs4.element.Tag, type: str = "ul") -> List[str]:
                             )
                         )
 
-        if buffer:
+        if "".join(buffer) != "":
             # When the buffer is not empty, dump the buffer contents.
             result.append(f"> {prefix}" + "".join(buffer))
             buffer.clear()
