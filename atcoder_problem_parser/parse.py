@@ -1,60 +1,106 @@
-from typing import List
+from typing import List, Set
 import bs4
+import re
+
+inlines: Set[str] = {
+    "a",
+    "addr",
+    "acronym",
+    "b",
+    "basefont",
+    "bdo",
+    "big",
+    "br",
+    "cite",
+    "code",
+    "dfn",
+    "em",
+    "font",
+    "i",
+    "img",
+    "input",
+    "kbd",
+    "label",
+    "q",
+    "s",
+    "stamp",
+    "select",
+    "small",
+    "span",
+    "strike",
+    "strong",
+    "sub",
+    "sup",
+    "textarea",
+    "tt",
+    "u",
+    "var",
+}
 
 
 class Parser:
-    def __init__(self):
-        pass
+    def __init__(self, html: str):
+        self.raw_html: str = html
 
+        entire_body = bs4.BeautifulSoup(html, "html.parser")
 
-def parse(text: str) -> List[str]:
-    """Parse the html and extract destination paragraphs
+        self.problem_html = entire_body.select_one(
+            "div.part:has(h3:-soup-contains('問題文')) > section"
+        )
+        self.constraint_html = entire_body.select_one(
+            "div.part:has(h3:-soup-contains('制約')) > section"
+        )
 
-    Args:
-        - text (str): HTML document for parse.
+        self.problem_markdown: List[str] = self.parse(self.problem_html)
+        self.constraint_markdown: List[str] = self.parse(self.constraint_html)
 
-    Returns:
-        - List[str]: The result of parse.
-    """
-    # Parse the html document by using BeautifulSoup4
-    soup = bs4.BeautifulSoup(text, "html.parser")
+    def problem(self) -> List[str]:
+        return self.problem_markdown
 
-    # List for containing the parse result
-    # At first, try to extract problem statements
-    result: List[str] = ["### 問題文", ""]
-    for element in soup.select(
-        "h3:-soup-contains('問題文') ~ p, h3:-soup-contains('問題文') ~ ul, h3:-soup-contains('問題文') ~ ol"
-    ):
+    def constraint(self) -> List[str]:
+        return self.constraint_markdown
+
+    def parse(self, element: bs4.element.Tag) -> List[str]:
+        result: List[str] = []
+
+        buffer: List[str] = []
+        for e in element.children:
+            if isinstance(e, bs4.element.Tag) and e.name not in inlines:
+                result.extend(self.parse(e))
+
+            if isinstance(e, bs4.element.NavigableString):
+                buffer.append(str(e).strip())
+            else:
+                if e.name == "code":
+                    buffer.append("`" + str(e.get_text(strip=True)) + "`")
+                elif e.name == "var":
+                    # When the element is <var>, format it as katex literal and append it.
+                    buffer.append("$" + str(e.get_text(strip=True)) + "$")
+                elif e.name == "br":
+                    # When the element is <br>, break this line.
+                    # Store the line with leading quotation mark.
+                    buffer.append("  \n")
+                elif e.name == "strong":
+                    buffer.append("**" + str(e.get_text(strip=True)) + "**")
+
+        if "".join(buffer) != "":
+            result.append("".join(buffer))
+
         if element.name == "p":
-            result.extend(parse_p(element))
-            result.append("> ")
+            result.append("")
+        elif element.name == "blockquote":
+            result = ["> " + s for s in result]
+            result.append("")
         elif element.name == "ul":
-            result.extend(parse_itemize(element, "ul"))
-            result.append("> ")
+            result = ["- " + s for s in result]
+            result.append("")
         elif element.name == "ol":
-            result.extend(parse_itemize(element, "ol"))
+            result = ["1. " + s for s in result]
+            result.append("")
+        else:
+            m = re.search(r"h(\d)", element.name)
+            if m is not None:
+                result = ["#" * int(m.groups()[0]) + " " + s for s in result]
+                result.append("")
 
-    # Make trailing line blank.
-    if result[-1] == "> ":
-        result[-1] = ""
-
-    # Next, try to extract problem constraints statements
-    result.extend(["### 制約", ""])
-
-    # Extract logic is same as above
-    # Assuming that <br> tag doesn't exist in constraints statements
-    constraint = soup.select("h3:-soup-contains('制約') ~ ul > li")
-    for p in constraint:
-        strings = []
-        for t in p:
-            if isinstance(t, bs4.element.NavigableString):
-                strings.append(str(t).strip())
-            elif isinstance(t, bs4.element.Tag):
-                if t.name == "var":
-                    strings.append("$" + str(t.get_text(strip=True)) + "$")
-                elif t.name == "code":
-                    strings.append("`" + str(t.get_text(strip=True)) + "`")
-        result.append("> - " + "".join(strings))
-    result.append("")
-
-    return result
+        return result
