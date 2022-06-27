@@ -79,9 +79,13 @@ def main(contest: str = "", problem: str = "", url: str = "", quote=True) -> Non
         - quote (bool): Whether the output Markdown should be in citation format. Default is True.
     """
 
+    # Raw HTML string
     raw_html: str = ""
+
+    # Generate target url from given parameter
     target_url: str = url if url != "" else generate_url(contest, problem)
 
+    # Try to get HTML resource from specified URL
     try:
         response: requests.Response = requests.get(target_url)
 
@@ -92,9 +96,12 @@ def main(contest: str = "", problem: str = "", url: str = "", quote=True) -> Non
     except requests.HTTPError:
         print("Specified URL is probably wrong. Check it out!", file=sys.stderr)
 
+    # Create app instance
     app = App(raw_html)
+    # Parse the HTML
     result: List[str] = app.transform(quote=quote)
 
+    # Output parse result
     for r in result:
         print(r)
 
