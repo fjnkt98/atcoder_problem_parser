@@ -95,8 +95,8 @@ def main(contest: str = "", problem: str = "", url: str = "", quote=True) -> Non
     app = App(raw_html)
     result: List[str] = app.transform(quote=quote)
 
-    # for r in result:
-    #     print(r)
+    for r in result:
+        print(r)
 
 
 if __name__ == "__main__":

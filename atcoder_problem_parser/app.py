@@ -11,5 +11,6 @@ class App:
         結果を返す関数
 
         """
-        print(self.html)
-        return []
+        parser = Parser(self.html)
+
+        return parser.problem() + parser.constraint()
