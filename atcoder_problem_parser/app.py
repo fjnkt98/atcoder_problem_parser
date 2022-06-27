@@ -11,6 +11,12 @@ class App:
         結果を返す関数
 
         """
+
         parser = Parser(self.html)
 
-        return parser.problem() + parser.constraint()
+        result: List[str] = parser.problem() + parser.constraint()
+
+        if quote:
+            result = ["> " + s for s in result]
+
+        return result
