@@ -1,90 +1,29 @@
 import click
 import requests
-import bs4
 from typing import List
 import sys
-from .tag_parser import parse_p, parse_itemize
+import warnings
+from .app import App
 
 
-def parse(text: str) -> List[str]:
-    """Parse the html and extract destination paragraphs
+def generate_url(contest: str, problem: str) -> str:
+    """
+    Generate URL from specified contest name and problem number.
 
     Args:
-        - text (str): HTML document for parse.
-
-    Returns:
-        - List[str]: The result of parse.
+        - contest: The contest name. "ABC", "ARC", or "AGC" will be only accepted.
+        - problem: The problem number. "a", "b", "c", "d", "e", "f", "g", "h" will be accepted.
+        if it's empty, "a" will be used instead.
     """
-    # Parse the html document by using BeautifulSoup4
-    soup = bs4.BeautifulSoup(text, "html.parser")
+    assert contest != "", "Argument `contest` is mandatory!"
 
-    # List for containing the parse result
-    # At first, try to extract problem statements
-    result: List[str] = ["### 問題文", ""]
-    for element in soup.select(
-        "h3:-soup-contains('問題文') ~ p, h3:-soup-contains('問題文') ~ ul, h3:-soup-contains('問題文') ~ ol"
-    ):
-        if element.name == "p":
-            result.extend(parse_p(element))
-            result.append("> ")
-        elif element.name == "ul":
-            result.extend(parse_itemize(element, "ul"))
-            result.append("> ")
-        elif element.name == "ol":
-            result.extend(parse_itemize(element, "ol"))
+    if problem == "":
+        warnings.warn(
+            "Since argument `problem` was not specified, `a` is used instead."
+        )
+        problem = "a"
 
-    # Make trailing line blank.
-    if result[-1] == "> ":
-        result[-1] = ""
-
-    # Next, try to extract problem constraints statements
-    result.extend(["### 制約", ""])
-
-    # Extract logic is same as above
-    # Assuming that <br> tag doesn't exist in constraints statements
-    constraint = soup.select("h3:-soup-contains('制約') ~ ul > li")
-    for p in constraint:
-        strings = []
-        for t in p:
-            if isinstance(t, bs4.element.NavigableString):
-                strings.append(str(t).strip())
-            elif isinstance(t, bs4.element.Tag):
-                if t.name == "var":
-                    strings.append("$" + str(t.get_text(strip=True)) + "$")
-                elif t.name == "code":
-                    strings.append("`" + str(t.get_text(strip=True)) + "`")
-        result.append("> - " + "".join(strings))
-    result.append("")
-
-    return result
-
-
-def app(contest: str = "", problem: str = "", url: str = "") -> List[str]:
-    print(contest)
-    target_problem: str = ""
-    target_url: str = ""
-    if url == "":
-        assert contest != "", "Argument `contest` is mandatory!"
-
-        if problem == "":
-            print(
-                "Since argument `problem` was not specified, `a` is used instead.",
-                file=sys.stderr,
-            )
-            target_problem = "a"
-        else:
-            target_problem = problem.lower()
-
-        target_url = f"https://atcoder.jp/contests/{contest.lower()}/tasks/{contest.lower()}_{problem.lower()}"
-    else:
-        target_url = url
-
-    response: requests.Response = requests.get(target_url)
-    if response.status_code == 200:
-        return parse(response.text)
-    else:
-        response.raise_for_status()
-        return []
+    return f"https://atcoder.jp/contests/{contest.lower()}/tasks/{contest.lower()}_{problem}"
 
 
 def validate(context: click.Context, parameter: click.Parameter, value: str):
@@ -127,8 +66,9 @@ def validate(context: click.Context, parameter: click.Parameter, value: str):
     ),
     default="",
 )
+@click.argument("quote", type=bool, default=True)
 @click.option("--url", default="", help="Problem URL.")
-def main(contest: str = "", problem: str = "", url: str = "") -> None:
+def main(contest: str = "", problem: str = "", url: str = "", quote=True) -> None:
     """main function
 
     Args:
@@ -136,18 +76,34 @@ def main(contest: str = "", problem: str = "", url: str = "") -> None:
         - problem (str): Problem index. Lowercase letters from a to h are only allowed.
         - url (str): URL of the problem. When this argument is not empty, it takes precedence
         and the other positional arguments are ignored.
+        - quote (bool): Whether the output Markdown should be in citation format. Default is True.
     """
-    try:
-        # Get the parse result.
-        result = app(contest, problem, url)
 
-        # Output the result to stdout.
-        for r in result:
-            print(r)
+    # Raw HTML string
+    raw_html: str = ""
+
+    # Generate target url from given parameter
+    target_url: str = url if url != "" else generate_url(contest, problem)
+
+    # Try to get HTML resource from specified URL
+    try:
+        response: requests.Response = requests.get(target_url)
+
+        if response.status_code == 200:
+            raw_html = response.text
+        else:
+            response.raise_for_status()
     except requests.HTTPError:
-        if url != "":
-            print("Specified URL is probably wrong. Check it out!", file=sys.stderr)
-        raise
+        print("Specified URL is probably wrong. Check it out!", file=sys.stderr)
+
+    # Create app instance
+    app = App(raw_html)
+    # Parse the HTML
+    result: List[str] = app.transform(quote=quote)
+
+    # Output parse result
+    for r in result:
+        print(r)
 
 
 if __name__ == "__main__":
